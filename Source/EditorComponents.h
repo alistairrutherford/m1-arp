@@ -400,15 +400,20 @@ struct Toggle : public Cell
         onText = caption;
         button.setButtonText ("Off");
         button.setClickingTogglesState (true);
-        button.onStateChange = [this] { button.setButtonText (button.getToggleState() ? onText : juce::String ("Off")); };
+        button.onStateChange = [this] { syncText(); };
         addAndMakeVisible (button);
     }
+
+    // Toggle state set with dontSendNotification does not fire onStateChange,
+    // so every path that sets the state also refreshes the caption.
+    void syncText() { button.setButtonText (button.getToggleState() ? onText : juce::String ("Off")); }
 
     juce::String onText;
 
     void bind (int* value, std::function<void()> changed)
     {
         button.setToggleState (value != nullptr && *value != 0, juce::dontSendNotification);
+        syncText();
         button.onClick = [this, value, changed]
         {
             if (value != nullptr)
@@ -423,6 +428,7 @@ struct Toggle : public Cell
         // arp_on is an int parameter, so drive it by hand rather than a ButtonAttachment.
         auto* p = state.getParameter (id);
         button.setToggleState (p != nullptr && p->getValue() > 0.5f, juce::dontSendNotification);
+        syncText();
         button.onClick = [this, p]
         {
             if (p != nullptr)
@@ -438,7 +444,10 @@ struct Toggle : public Cell
     void refreshFromParam()
     {
         if (paramToWatch != nullptr)
+        {
             button.setToggleState (paramToWatch->getValue() > 0.5f, juce::dontSendNotification);
+            syncText();
+        }
     }
 
     void resized() override
