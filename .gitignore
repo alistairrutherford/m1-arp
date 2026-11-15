@@ -1,0 +1,6 @@
+Builds/
+JuceLibraryCode/
+Tests/build/
+.DS_Store
+*.bank
+*.m1bk
