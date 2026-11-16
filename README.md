@@ -90,4 +90,15 @@ arpeggiator timing, effects, combinations, file formats and test plan.
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+The M1 ARP source code is licensed under Apache 2.0. See [LICENSE](LICENSE).
+
+The plugin is built with [JUCE](https://juce.com), which is dual-licensed under
+the [AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html) and the commercial
+[JUCE 8 licence](https://juce.com/legal/juce-8-licence/). Apache 2.0 code can be
+combined with AGPLv3 code, but a built AU, VST3 or Standalone binary includes
+JUCE and so is also covered by JUCE's terms. If you distribute a build, either
+distribute it under the AGPLv3 with its complete source, or hold a JUCE licence
+that covers your use.
+
+The Steinberg VST3 SDK (MIT) and Apple AudioUnitSDK (Apache 2.0) that come with
+JUCE place no further restrictions on builds.
