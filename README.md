@@ -11,6 +11,8 @@ This is a clean-room implementation: no factory PCM, presets, panel artwork or
 manual text are included. Every multisample in the built-in bank is synthesised
 in code.
 
+**Version 1.1.0** (2026-11-18). What changed: [CHANGELOG.md](CHANGELOG.md).
+
 ![M1 ARP editor, Arp page, with the Info View describing the arp's Mode](/screenshot.png?raw=true "M1 ARP editor")
 
 ## Features
