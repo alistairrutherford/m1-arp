@@ -578,6 +578,18 @@ runtime dependency.
 
 The pages in §10, `pluginval`, the Live pass in §11.
 
+### Release 1.1.0 (2026-11-18)
+
+Version 1.1.0 (0x10100) in `M1Arp.jucer` (`738d45d`, "Release 1.1.0"); `CHANGELOG.md` (new: 1.1.0,
+the Info View; 1.0.0, not released) and the README's version line (`8e85c7b`). Tag **`v1.1.0`** on
+the changelog commit `8e85c7b`. **Checks:** `Tests/run_tests.sh` and `Tests/run_integration.sh`
+pass; **pluginval strictness 10 passes** on the VST3 and `auval -v aumu M1ap ARut` on the AU; the
+installed AU, VST3 and Standalone report 1.1.0. **GitHub release**
+[M1 ARP 1.1.0](https://github.com/alistairrutherford/m1-arp/releases/tag/v1.1.0):
+`M1Arp-1.1.0-macOS-adhoc.zip` (12.7 MB; the AU, the VST3, the Standalone, README, CHANGELOG and
+licence; universal) and its `.sha256`, signed ad hoc and not notarized (no Developer ID on this
+Mac), downloaded back and checked. Not run in Live.
+
 ---
 
 ## 13. Explicitly later
