@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="M1arp1" name="M1Arp" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="1.0.0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="1.1.0"
               companyName="Alistair Rutherford" bundleIdentifier="com.alistairrutherford.m1arp"
               pluginFormats="buildAU,buildVST3,buildStandalone" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn"
               pluginName="M1 ARP" pluginDesc="Polyphonic PCM synthesizer with arpeggiator"
