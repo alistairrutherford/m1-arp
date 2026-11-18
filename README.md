@@ -11,7 +11,7 @@ This is a clean-room implementation: no factory PCM, presets, panel artwork or
 manual text are included. Every multisample in the built-in bank is synthesised
 in code.
 
-![M1 ARP editor, Arp page](/screenshot.png?raw=true "M1 ARP editor")
+![M1 ARP editor, Arp page, with the Info View describing the arp's Mode](/screenshot.png?raw=true "M1 ARP editor")
 
 ## Features
 
@@ -34,7 +34,8 @@ in code.
   octave range, latch, and per-timbre arps in Multi.
 - **Editor** with ten pages (Play, Osc, Pitch, Filter, Amp, Mod, Arp, FX,
   Combi, Kit), live envelope graphs and an on-screen keyboard that shows the
-  notes after the arp.
+  notes after the arp. Point at any control and the **Info View** strip along
+  the bottom says what it does and what its values mean, like Live's own.
 - 24 factory programs, 8 combinations and 4 General-MIDI-layout drum kits.
   Presets save and load as `.m1arp` files.
 

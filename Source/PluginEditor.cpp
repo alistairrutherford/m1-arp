@@ -49,6 +49,383 @@ juce::String balanceText (int b)
 juce::String timeTip() { return "0-99: 2 ms to 5 s, exponential"; }
 }
 
+// ===================================================================== Info View
+
+namespace
+{
+struct Info { const char* key; const char* title; const char* text; };
+
+// One entry per control, keyed "<page>:<section>/<control>" ("*" for any page, or any control of
+// a section), or "header.…" and "tab.…" for the header. Keep each to a line or two: what it
+// does, and what its values mean.
+const Info kInfo[] = {
+    // ---- Header ------------------------------------------------------------------------------
+    { "header.display", "Program", "The program or combination playing. Click to pick one from the list; double-click the name to rename it." },
+    { "header.prev", "Previous", "The previous program (or combination, in COMBI mode)." },
+    { "header.next", "Next", "The next program (or combination, in COMBI mode)." },
+    { "header.prog", "PROG", "Play single programs." },
+    { "header.combi", "COMBI", "Play combinations: layers, splits, velocity switches and an 8-part multi." },
+    { "header.save", "Save", "Saves every program, combination and kit to a .m1arp file." },
+    { "header.load", "Load", "Loads a .m1arp file, replacing every program, combination and kit." },
+    { "header.master", "Master", "Output level. A soft limiter keeps the output under 0 dBFS." },
+    { "header.meter", "Meter", "The output level, with the recent peak held." },
+    { "header.keyboard", "Keyboard", "Shows the notes the voices play, after the arpeggiator. Click to play." },
+    { "tab.Play", "Play page", "Quick offsets on the program, automation trims and the arpeggiator's main controls." },
+    { "tab.Osc", "Osc page", "The program's mode, voice assignment and its one or two oscillators." },
+    { "tab.Pitch", "Pitch page", "The pitch envelope and pitch bend." },
+    { "tab.Filter", "Filter page", "The VDF: the low-pass filter, its envelope, velocity and keyboard tracking." },
+    { "tab.Amp", "Amp page", "The VDA: the amplitude envelope, level, velocity and keyboard tracking." },
+    { "tab.Mod", "Mod page", "The two MGs (vibrato and wah), aftertouch, pitch bend and the mod wheel." },
+    { "tab.Arp", "Arp page", "The arpeggiator: mode, rate, gate, octaves, swing and the 16-step pattern." },
+    { "tab.FX", "FX page", "The two effect processors and how they are routed." },
+    { "tab.Combi", "Combi page", "The current combination: its type, split, velocity point and up to eight timbres." },
+    { "tab.Kit", "Kit page", "The drum kit the program plays in Drums mode: a sample, tune, level and more per key." },
+
+    // ---- Play ---------------------------------------------------------------------------------
+    { "Play:Performance", "Performance", "Quick offsets on top of the stored program. Automatable, and cleared when you change program." },
+    { "Play:Performance/Osc Bal", "Osc balance", "Shifts the balance between the oscillators: + louder OSC 2, - louder OSC 1 (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Cutoff", "Cutoff offset", "Offsets both VDF cutoffs (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Level", "Level offset", "Offsets the oscillator levels (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Kbd Track", "Keyboard track offset", "Offsets the VDF and VDA keyboard tracking (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Velocity", "Velocity offset", "Offsets the VDF and VDA velocity intensity (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Attack", "Attack offset", "Offsets the attack times of the pitch, VDF and VDA envelopes (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Release", "Release offset", "Offsets the release times of the pitch, VDF and VDA envelopes (-10 to +10). Cleared on program change." },
+    { "Play:Performance/Effect", "Effect offset", "Offsets both effects' dry:effect balance (-10 to +10). Cleared on program change." },
+    { "Play:Automation Trims", "Automation trims", "Host-automatable trims that stay when you change program." },
+    { "Play:Automation Trims/Cutoff", "Cutoff trim", "Moves both VDF cutoffs up or down (-99 to +99), for automation. Kept across program changes." },
+    { "Play:Automation Trims/Release", "Release trim", "Lengthens or shortens every envelope's release (-99 to +99), for automation. Kept across program changes." },
+    { "Play:Automation Trims/FX1 Mix", "FX1 mix trim", "Moves effect 1's dry:effect balance, for automation." },
+    { "Play:Automation Trims/FX2 Mix", "FX2 mix trim", "Moves effect 2's dry:effect balance, for automation." },
+    { "Play:Program", "Program", "A summary of the program: its mode, oscillators or kit, and its effects." },
+
+    // ---- The arpeggiator (Play and Arp pages) --------------------------------------------------
+    { "*:Arpeggiator", "Arpeggiator", "Plays the held notes one at a time, locked to the host's grid while it plays." },
+    { "*:Arpeggiator/Arp", "Arp", "Turns the arpeggiator on or off. Host-automatable." },
+    { "*:Arpeggiator/Rate", "Rate", "The arp's step length: 1/1 to 1/32 (T: triplets). Host-automatable." },
+    { "*:Arpeggiator/Gate", "Gate", "How much of each step a note sounds (1 to 100%; 100% ties into the next step). Host-automatable." },
+    { "*:Arpeggiator/Mode", "Mode", "The note order: Up, Down, Up/Down, Down/Up, Random, As Played, Chord (all together) or Pattern (the steps below)." },
+    { "*:Arpeggiator/Latch", "Latch", "On: the pattern keeps playing after you let go. Turning it off keeps only the keys still held." },
+    { "*:Arpeggiator/Octaves", "Octaves", "How many octaves the arp climbs (1 to 4)." },
+    { "*:Arpeggiator/Swing", "Swing", "Delays every second step. 50%: straight. 66%: a triplet feel." },
+    { "Arp:Pattern", "Pattern", "Pattern mode's 16 steps. Click a lamp to switch a step; drag a bar for its velocity; click its octave cell to raise it." },
+    { "Arp:Pattern/steps", "Steps", "Click a lamp to switch a step on or off. Drag a bar to set its velocity. Click the octave cell to raise it (shift- or right-click lowers it)." },
+
+    // ---- Osc ----------------------------------------------------------------------------------
+    { "*:Edit/Oscillator", "Oscillator", "Double mode: which oscillator this page edits, OSC 1 or OSC 2." },
+    { "Osc:Voice/Mode", "Mode", "Single: one oscillator, 16 voices. Double: two oscillators, 8 voices. Drums: OSC 1 plays a drum kit." },
+    { "Osc:Voice/Assign", "Assign", "Poly: chords. Mono: one note at a time." },
+    { "Osc:Voice/Hold", "Hold", "Ignores note-offs: a note sounds until it is stolen or Hold is turned off (drum style)." },
+    { "Osc:Voice/Drum Kit", "Drum kit", "The kit OSC 1 plays in Drums mode. Edit it on the Kit page." },
+    { "Osc:Oscillator 1", "Oscillator 1", "The first oscillator. In Drums mode it plays the drum kit." },
+    { "Osc:Oscillator 1/Multisound", "Multisound", "The waveform OSC 1 plays: one of 100 multisamples (pianos, strings, brass, organs, basses, waves and more)." },
+    { "Osc:Oscillator 1/Octave", "Octave", "OSC 1's octave: 16' (low), 8' (normal) or 4' (high)." },
+    { "Osc:Oscillator 1/Level", "Level", "OSC 1's level (0 to 99)." },
+    { "Osc:Oscillator 2", "Oscillator 2", "The second oscillator, used in Double mode." },
+    { "Osc:Oscillator 2/Multisound", "Multisound", "The waveform OSC 2 plays: one of 100 multisamples." },
+    { "Osc:Oscillator 2/Octave", "Octave", "OSC 2's octave: 16' (low), 8' (normal) or 4' (high)." },
+    { "Osc:Oscillator 2/Level", "Level", "OSC 2's level (0 to 99)." },
+    { "Osc:Oscillator 2/Interval", "Interval", "OSC 2's pitch relative to OSC 1, in semitones (-12 to +12)." },
+    { "Osc:Oscillator 2/Detune", "Detune", "OSC 2's pitch offset in cents (-50 to +50): a little thickens the sound." },
+    { "Osc:Oscillator 2/Delay", "Delay", "When OSC 2 starts: 0 = with the note, 99 = 500 ms later." },
+
+    // ---- Pitch --------------------------------------------------------------------------------
+    { "Pitch:Pitch EG", "Pitch EG", "The pitch envelope: how the pitch moves from the note's start to its release." },
+    { "Pitch:Pitch EG/graph", "Pitch EG", "The pitch envelope's shape, from Start through Attack and Decay to the note's pitch, then Release." },
+    { "Pitch:Pitch EG/Start", "Start level", "The pitch the note starts at, in cents from the note (99 = 1 octave up, -99 down)." },
+    { "Pitch:Pitch EG/Atk Time", "Attack time", "How long the pitch takes from Start to the attack level. 0-99: 2 ms to 5 s." },
+    { "Pitch:Pitch EG/Atk Level", "Attack level", "The pitch reached at the end of the attack, in cents (99 = 1 octave)." },
+    { "Pitch:Pitch EG/Dcy Time", "Decay time", "How long the pitch takes from the attack level back to the note. 0-99: 2 ms to 5 s." },
+    { "Pitch:Pitch EG/Rel Time", "Release time", "How long the pitch takes to reach the release level after note-off. 0-99: 2 ms to 5 s." },
+    { "Pitch:Pitch EG/Rel Level", "Release level", "The pitch the note bends to after note-off, in cents (99 = 1 octave)." },
+    { "Pitch:Velocity", "Velocity", "How playing harder changes the pitch envelope." },
+    { "Pitch:Velocity/EG Level", "EG level", "How much velocity scales the pitch envelope's levels (- : softer notes move more)." },
+    { "Pitch:Velocity/EG Time", "EG time", "Positive: harder notes make the pitch envelope faster. Negative: softer notes do." },
+    { "*:Pitch Bend", "Pitch bend", "The pitch bend wheel's range." },
+    { "*:Pitch Bend/Range", "Bend range", "How far the pitch bend wheel bends, in semitones (-12 to +12)." },
+
+    // ---- Filter (VDF) -------------------------------------------------------------------------
+    { "Filter:VDF", "VDF", "The low-pass filter (no resonance): its cutoff and how far its envelope moves it." },
+    { "Filter:VDF/Cutoff", "Cutoff", "The filter's cutoff: 100 Hz to 16 kHz, low-pass, no resonance." },
+    { "Filter:VDF/EG Int", "EG intensity", "How far the VDF envelope moves the cutoff (99 = 4 octaves)." },
+    { "Filter:VDF EG", "VDF EG", "The filter envelope: how the cutoff moves over the note." },
+    { "Filter:VDF EG/graph", "VDF EG", "The filter envelope's shape: attack, decay to the break point, slope to sustain, then release." },
+    { "Filter:VDF EG/Attack", "Attack time", "Time from the note's start to the attack level. 0-99: 2 ms to 5 s." },
+    { "Filter:VDF EG/Atk Lvl", "Attack level", "The cutoff reached at the end of the attack, relative to the cutoff (-99 to +99)." },
+    { "Filter:VDF EG/Decay", "Decay time", "Time from the attack level to the break point. 0-99: 2 ms to 5 s." },
+    { "Filter:VDF EG/Break", "Break point", "The level the decay reaches before the slope begins, relative to the cutoff." },
+    { "Filter:VDF EG/Slope", "Slope time", "Time from the break point to the sustain level. 0-99: 2 ms to 5 s." },
+    { "Filter:VDF EG/Sustain", "Sustain level", "The level held while the key is down, relative to the cutoff." },
+    { "Filter:VDF EG/Release", "Release time", "Time from note-off to the release level. 0-99: 2 ms to 5 s." },
+    { "Filter:VDF EG/Rel Lvl", "Release level", "The level the cutoff ends at after the release, relative to the cutoff." },
+    { "Filter:Velocity", "Velocity", "How playing harder changes the filter envelope." },
+    { "Filter:Velocity/EG Int", "EG intensity", "How much velocity scales the filter envelope's depth (-99 to +99)." },
+    { "Filter:Velocity/EG Time", "EG time", "How much velocity changes the envelope times marked + or - beside it." },
+    { "Filter:Keyboard Track", "Keyboard track", "How the key played changes the cutoff and the filter envelope's times." },
+    { "Filter:Keyboard Track/Centre", "Centre key", "The key where keyboard tracking has no effect; it acts above and below it." },
+    { "Filter:Keyboard Track/Cutoff", "Cutoff tracking", "How the cutoff follows the key. 0: follows the pitch exactly; + opens faster up the keyboard, - slower." },
+    { "Filter:Keyboard Track/EG Time", "EG time", "How much the key played changes the envelope times marked + or - beside it." },
+
+    // ---- Amp (VDA) ----------------------------------------------------------------------------
+    { "Amp:VDA EG", "VDA EG", "The amplitude envelope: how the level moves over the note." },
+    { "Amp:VDA EG/graph", "VDA EG", "The amplitude envelope's shape: attack, decay to the break point, slope to sustain, then release." },
+    { "Amp:VDA EG/Attack", "Attack time", "Time from the note's start to the attack level. 0-99: 2 ms to 5 s." },
+    { "Amp:VDA EG/Atk Lvl", "Attack level", "The level reached at the end of the attack (0 to 99)." },
+    { "Amp:VDA EG/Decay", "Decay time", "Time from the attack level to the break point. 0-99: 2 ms to 5 s." },
+    { "Amp:VDA EG/Break", "Break point", "The level the decay reaches before the slope begins (0 to 99)." },
+    { "Amp:VDA EG/Slope", "Slope time", "Time from the break point to the sustain level. 0-99: 2 ms to 5 s." },
+    { "Amp:VDA EG/Sustain", "Sustain level", "The level held while the key is down (0 to 99)." },
+    { "Amp:VDA EG/Release", "Release time", "Time from note-off to the release level. 0-99: 2 ms to 5 s." },
+    { "Amp:VDA EG/Rel Lvl", "Release level", "The level the note ends at after the release (0 to 99; 0 is silence)." },
+    { "Amp:Level", "Level", "The oscillator's level." },
+    { "Amp:Level/OSC Level", "OSC level", "The level of the oscillator this page edits (0 to 99)." },
+    { "Amp:Velocity", "Velocity", "How playing harder changes the level and the amplitude envelope." },
+    { "Amp:Velocity/Amp Sens", "Amp sensitivity", "How much velocity changes the level (-99 to +99)." },
+    { "Amp:Velocity/EG Time", "EG time", "How much velocity changes the envelope times marked + or - beside it." },
+    { "Amp:Keyboard Track", "Keyboard track", "How the key played changes the level and the amplitude envelope's times." },
+    { "Amp:Keyboard Track/Centre", "Centre key", "The key where keyboard tracking has no effect; it acts above and below it." },
+    { "Amp:Keyboard Track/Level", "Level tracking", "How the level changes above and below the centre key (+ : louder up the keyboard)." },
+    { "Amp:Keyboard Track/EG Time", "EG time", "How much the key played changes the envelope times marked + or - beside it." },
+
+    // ---- The velocity and keyboard polarity switches (Filter and Amp) ---------------------------
+    { "*:Velocity/AT", "Attack time switch", "+ : harder notes shorten the attack. - : softer notes do. 0: velocity leaves it." },
+    { "*:Velocity/DT", "Decay time switch", "+ : harder notes shorten the decay. - : softer notes do. 0: velocity leaves it." },
+    { "*:Velocity/ST", "Slope time switch", "+ : harder notes shorten the slope. - : softer notes do. 0: velocity leaves it." },
+    { "*:Velocity/RT", "Release time switch", "+ : harder notes shorten the release. - : softer notes do. 0: velocity leaves it." },
+    { "*:Keyboard Track/AT", "Attack time switch", "+ : keys above the centre shorten the attack. - : keys below do. 0: the key leaves it." },
+    { "*:Keyboard Track/DT", "Decay time switch", "+ : keys above the centre shorten the decay. - : keys below do. 0: the key leaves it." },
+    { "*:Keyboard Track/ST", "Slope time switch", "+ : keys above the centre shorten the slope. - : keys below do. 0: the key leaves it." },
+    { "*:Keyboard Track/RT", "Release time switch", "+ : keys above the centre shorten the release. - : keys below do. 0: the key leaves it." },
+
+    // ---- Mod ----------------------------------------------------------------------------------
+    { "Mod:Pitch MG (vibrato)", "Pitch MG", "The vibrato LFO: wobbles the pitch." },
+    { "Mod:VDF MG (wah)", "VDF MG", "The wah LFO: wobbles the filter cutoff." },
+    { "Mod:*/Wave", "Wave", "The LFO's shape: Triangle, Saw Up, Saw Down or Square." },
+    { "Mod:*/Target", "Target", "Which oscillators the LFO moves: OSC 1, OSC 2, both, or off." },
+    { "Mod:*/Key Sync", "Key sync", "On: each note starts its own LFO from the top. Off: one free-running LFO for every note." },
+    { "Mod:*/Freq", "Frequency", "The LFO's speed: 0.1 Hz to 20 Hz." },
+    { "Mod:*/Delay", "Delay", "How long after the note the LFO fades in. 0-99: 2 ms to 5 s." },
+    { "Mod:*/Intensity", "Intensity", "How far the LFO moves things. Pitch MG: 99 is 50 cents either way. VDF MG: 99 is 2 octaves of cutoff either way." },
+    { "Mod:Aftertouch", "Aftertouch", "What pressing harder on a held key does." },
+    { "Mod:Aftertouch/Pitch", "Pitch", "Pressure deepens the vibrato: this many semitones of Pitch MG at full pressure (-12 to +12)." },
+    { "Mod:Aftertouch/Pitch MG", "Pitch MG", "Pressure deepens the program's Pitch MG (0 to 99)." },
+    { "Mod:Aftertouch/VDF", "VDF", "Pressure opens (+) or closes (-) the filter, up to 2 octaves at full pressure." },
+    { "Mod:Aftertouch/VDF MG", "VDF MG", "Pressure deepens the program's VDF MG (0 to 99)." },
+    { "Mod:Aftertouch/VDA", "VDA", "Pressure makes the note louder (+) or softer (-), up to 12 dB at full pressure." },
+    { "Mod:Pitch Bend + Mod Wheel", "Bend and mod wheel", "What the pitch bend and mod wheels do." },
+    { "Mod:Pitch Bend + Mod Wheel/Bend", "Bend range", "How far the pitch bend wheel bends, in semitones (-12 to +12)." },
+    { "Mod:Pitch Bend + Mod Wheel/VDF Sweep", "VDF sweep", "The mod wheel opens (+) or closes (-) the filter." },
+    { "Mod:Pitch Bend + Mod Wheel/Pitch MG", "Pitch MG", "The mod wheel adds vibrato (0 to 99)." },
+    { "Mod:Pitch Bend + Mod Wheel/PMG Freq", "Pitch MG speed", "The mod wheel speeds up the vibrato (0 to 99)." },
+    { "Mod:Pitch Bend + Mod Wheel/VDF MG", "VDF MG", "The mod wheel adds wah (0 to 99)." },
+    { "Mod:Pitch Bend + Mod Wheel/VMG Freq", "VDF MG speed", "The mod wheel speeds up the wah (0 to 99)." },
+
+    // ---- FX -----------------------------------------------------------------------------------
+    { "FX:Effect 1", "Effect 1", "The first effect processor. In COMBI mode this page edits the combination's effects." },
+    { "FX:Effect 2", "Effect 2", "The second effect processor. Some types can't pair with effect 1's and are greyed out." },
+    { "FX:*/Type", "Type", "The effect: halls, rooms, early reflections, delays, chorus, flanger, phaser, tremolo, EQ, overdrive, exciter and more." },
+    { "FX:*/Dry:Fx", "Dry:effect", "The balance of dry sound and effect, from 99:1 (dry) to 1:99 (all effect)." },
+    { "FX:*/*", "Effect parameter", "A setting of this effect type (0 to 99), named for what it changes." },
+    { "FX:Routing", "Routing", "How the two effects are connected." },
+    { "FX:Routing/Placement", "Placement", "Serial: effect 1 feeds effect 2. Parallel: both hear the dry voices." },
+
+    // ---- Combi --------------------------------------------------------------------------------
+    { "Combi:Combination", "Combination", "The combination being edited: its type and the settings it shares." },
+    { "Combi:Combination/Type", "Type", "Single: one timbre. Layer: two at once. Split: two across a split key. Velocity: two by velocity. Multi: eight parts." },
+    { "Combi:Combination/Split Key", "Split key", "Split type: timbre 2 plays below this key, timbre 1 from it up." },
+    { "Combi:Combination/Vel Point", "Velocity point", "Velocity type: notes below this velocity play timbre 2, the rest timbre 1." },
+    { "Combi:Combination/Arp Mode", "Arp mode", "The combination's arpeggiator order (Multi: each timbre has its own in the table)." },
+    { "Combi:Combination/Arp Swing", "Arp swing", "Delays every second arp step. 50%: straight." },
+    { "Combi:Timbres", "Timbres", "The combination's parts: a program each, with its level, pan, range and arp. Dimmed rows aren't used by this type." },
+    { "Combi:Timbres/#", "Timbre", "The timbre's number." },
+    { "Combi:Timbres/Program", "Program", "The program this timbre plays." },
+    { "Combi:Timbres/Level", "Level", "The timbre's level (0 to 99)." },
+    { "Combi:Timbres/Pan", "Pan", "Where the timbre sits, left to right." },
+    { "Combi:Timbres/MIDI Ch", "MIDI channel", "The MIDI channel the timbre listens to (1 to 16), or All." },
+    { "Combi:Timbres/Key Lo", "Key low", "The lowest key the timbre plays." },
+    { "Combi:Timbres/Key Hi", "Key high", "The highest key the timbre plays." },
+    { "Combi:Timbres/Vel Lo", "Velocity low", "The softest velocity the timbre plays." },
+    { "Combi:Timbres/Vel Hi", "Velocity high", "The hardest velocity the timbre plays." },
+    { "Combi:Timbres/Trans", "Transpose", "Shifts the timbre in semitones (-24 to +24)." },
+    { "Combi:Timbres/Detune", "Detune", "The timbre's pitch offset in cents (-50 to +50)." },
+    { "Combi:Timbres/Damper", "Damper", "On: the timbre responds to the sustain pedal." },
+    { "Combi:Timbres/Arp", "Arp", "Multi: whether this timbre's notes go through its own arpeggiator." },
+    { "Combi:Timbres/Arp Mode", "Arp mode", "Multi: this timbre's arpeggiator order." },
+    { "Combi:Timbres/Gate", "Arp gate", "Multi: how much of each arp step this timbre's notes sound." },
+    { "Combi:Timbres/Oct", "Arp octaves", "Multi: how many octaves this timbre's arp climbs (1 to 4)." },
+
+    // ---- Kit ----------------------------------------------------------------------------------
+    { "Kit:Drum Kit", "Drum kit", "The kit this program plays in Drums mode. Keys in the same group cut each other off (hi-hats)." },
+    { "Kit:Drum Kit/Program Kit", "Program kit", "Which of the four kits the program plays (and this page edits)." },
+    { "Kit:Keys", "Keys", "The kit's keys: a sample per key, with its tune, level, decay, pan and group." },
+    { "Kit:Keys/Key", "Key", "Click to hear the key." },
+    { "Kit:Keys/Sample", "Sample", "The drum sound this key plays: one of 44." },
+    { "Kit:Keys/Tune", "Tune", "The sample's pitch, up or down (-50 to +50)." },
+    { "Kit:Keys/Level", "Level", "The key's level (0 to 99)." },
+    { "Kit:Keys/Decay", "Decay", "How fast the sound fades. Full: the whole sample plays." },
+    { "Kit:Keys/Pan", "Pan", "Where the key sits, left to right." },
+    { "Kit:Keys/Group", "Group", "Keys in the same group (1 to 7) cut each other off, like open and closed hi-hats. -: none." },
+    { "Kit:Keys/Plays On", "Plays on", "The MIDI note that plays this key." },
+};
+
+const char* kInfoHint = "Point at a control to see what it does.";
+
+const Info* findInfoEntry (const juce::String& key)
+{
+    for (auto& i : kInfo)
+        if (key == i.key)
+            return &i;
+    return nullptr;
+}
+
+// "Filter:VDF EG/Attack", else "*:VDF EG/Attack", else "Filter:VDF EG/*", else "Filter:*/Attack",
+// else "Filter:*/*" (and the same with "*:").
+const Info* findInfo (const juce::String& key)
+{
+    if (key.isEmpty())
+        return nullptr;
+    if (auto* i = findInfoEntry (key))
+        return i;
+    const auto page = key.upToFirstOccurrenceOf (":", false, false);
+    const auto rest = key.fromFirstOccurrenceOf (":", false, false);
+    if (rest.isEmpty())
+        return nullptr;
+    const auto section = rest.upToFirstOccurrenceOf ("/", false, false);
+    const bool hasCell = rest.containsChar ('/');
+    const auto cell = rest.fromFirstOccurrenceOf ("/", false, false);
+    for (const auto& p : { page, juce::String ("*") })
+    {
+        if (auto* i = findInfoEntry (p + ":" + rest))
+            return i;
+        if (hasCell)
+            for (const auto& k : { p + ":" + section + "/*", p + ":*/" + cell, p + ":*/*" })
+                if (auto* i = findInfoEntry (k))
+                    return i;
+    }
+    return nullptr;
+}
+
+// A section's name without what it shows ("VDF  OSC 2" → "VDF", "Combination  Strings" → "Combination").
+juce::String sectionBase (const juce::String& title) { return title.upToFirstOccurrenceOf ("  ", false, false); }
+
+juce::String cellName (juce::Component* c)
+{
+    if (auto* k = dynamic_cast<Knob*> (c)) return k->title.getText();
+    if (auto* ch = dynamic_cast<Choice*> (c)) return ch->title.getText();
+    if (auto* s = dynamic_cast<Segmented*> (c)) return s->title.getText();
+    if (auto* t = dynamic_cast<Toggle*> (c)) return t->title.getText();
+    if (dynamic_cast<EnvelopeView*> (c) != nullptr) return "graph";
+    if (dynamic_cast<StepGrid*> (c) != nullptr) return "steps";
+    return {};   // a caption: the section's own entry
+}
+}
+
+juce::String M1ArpAudioProcessorEditor::infoTitle (const juce::String& key)
+{
+    const auto* i = findInfo (key);
+    return i != nullptr ? juce::String::fromUTF8 (i->title) : juce::String();
+}
+
+juce::String M1ArpAudioProcessorEditor::infoText (const juce::String& key)
+{
+    const auto* i = findInfo (key);
+    return i != nullptr ? juce::String::fromUTF8 (i->text) : juce::String();
+}
+
+juce::StringArray M1ArpAudioProcessorEditor::infoKeys()
+{
+    juce::StringArray out;
+    for (auto& i : kInfo)
+        out.add (i.key);
+    return out;
+}
+
+juce::String M1ArpAudioProcessorEditor::infoHint() { return kInfoHint; }
+
+// Gives every section, control and table cell of the page its Info View key.
+void M1ArpAudioProcessorEditor::tagPage (Page& pg)
+{
+    const juce::String pageName = kPageNames[pageIndex];
+    for (auto* c : pg.sections)
+    {
+        if (auto* s = dynamic_cast<Section*> (c))
+        {
+            const auto base = pageName + ":" + sectionBase (s->title);
+            s->setComponentID (base);
+            for (auto* cell : s->cells)
+            {
+                const auto name = cellName (cell);
+                cell->setComponentID (name.isEmpty() ? base : base + "/" + name);
+            }
+        }
+        else if (auto* t = dynamic_cast<TableSection*> (c))
+        {
+            const auto base = pageName + ":" + sectionBase (t->title);
+            t->setComponentID (base);
+            for (auto& row : t->rows)
+                for (size_t i = 0; i < row.size() && i < t->columns.size(); ++i)
+                    if (row[i] != nullptr)
+                        row[i]->setComponentID (base + "/" + t->columns[i].name);
+        }
+    }
+}
+
+juce::String M1ArpAudioProcessorEditor::infoKeyAt (juce::Point<int> p)
+{
+    // The innermost thing under the point with a key. (From the children down: the editor's own
+    // getComponentAt needs it to be on screen.)
+    juce::Component* hit = nullptr;
+    for (int i = getNumChildComponents(); --i >= 0 && hit == nullptr;)
+    {
+        auto* child = getChildComponent (i);
+        if (child->isVisible() && child->getBounds().contains (p))
+            hit = child->getComponentAt (child->getLocalPoint (this, p));
+    }
+    for (auto* c = hit; c != nullptr && c != this; c = c->getParentComponent())
+        if (findInfo (c->getComponentID()) != nullptr)
+            return c->getComponentID();
+    return {};
+}
+
+void M1ArpAudioProcessorEditor::showInfoFor (const juce::String& key)
+{
+    if (const auto* i = findInfo (key))
+    {
+        juce::String title = juce::String::fromUTF8 (i->title);
+        // An effect's own parameters share one entry: name the one pointed at.
+        if (juce::String (i->key) == "FX:*/*")
+            title = key.fromLastOccurrenceOf ("/", false, false);
+        info.show (key, title, juce::String::fromUTF8 (i->text));
+    }
+    else
+        info.show ({}, {}, kInfoHint);
+}
+
+void M1ArpAudioProcessorEditor::updateInfo (const juce::MouseEvent& e)
+{
+    const auto key = infoKeyAt (e.getEventRelativeTo (this).getPosition());
+    if (key != info.key || info.text.isEmpty())
+        showInfoFor (key);
+}
+
+void M1ArpAudioProcessorEditor::mouseEnter (const juce::MouseEvent& e) { updateInfo (e); }
+void M1ArpAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)  { updateInfo (e); }
+void M1ArpAudioProcessorEditor::mouseDrag (const juce::MouseEvent& e)  { updateInfo (e); }
+
+void M1ArpAudioProcessorEditor::mouseExit (const juce::MouseEvent& e)
+{
+    // Moving between children also sends exits: clear only on leaving the editor.
+    if (! getLocalBounds().contains (e.getEventRelativeTo (this).getPosition()))
+        showInfoFor ({});
+}
+
+void M1ArpAudioProcessorEditor::showPage (int index)
+{
+    pageIndex = juce::jlimit (0, kPages - 1, index);
+    rebuild();
+}
+
+int M1ArpAudioProcessorEditor::numPages() { return kPages; }
+
 // ===================================================================== Display
 
 M1ArpAudioProcessorEditor::Display::Display()
@@ -207,9 +584,27 @@ M1ArpAudioProcessorEditor::M1ArpAudioProcessorEditor (M1ArpAudioProcessor& p)
     keyboard.setColour (juce::MidiKeyboardComponent::upDownButtonBackgroundColourId, colours::panel);
     addAndMakeVisible (keyboard);
 
+    // The Info View's keys for the header (the pages' controls get theirs in tagPage).
+    display.setComponentID ("header.display");
+    prevButton.setComponentID ("header.prev");
+    nextButton.setComponentID ("header.next");
+    progButton.setComponentID ("header.prog");
+    combiButton.setComponentID ("header.combi");
+    saveButton.setComponentID ("header.save");
+    loadButton.setComponentID ("header.load");
+    master.setComponentID ("header.master");
+    meter.setComponentID ("header.meter");
+    keyboard.setComponentID ("header.keyboard");
+    for (int i = 0; i < kPages; ++i)
+        tabs[i].setComponentID ("tab." + juce::String (kPageNames[i]));
+    addAndMakeVisible (info);
+    showInfoFor ({});
+    addMouseListener (this, true);   // hovering over any child updates the Info View
+
+    // 64 px taller than before the Info View (1080 x 730, smallest 960 x 640): the strip and its gap.
     setResizable (true, true);
-    setResizeLimits (960, 640, 1700, 1200);
-    setSize (1080, 730);
+    setResizeLimits (960, 704, 1700, 1264);
+    setSize (1080, 794);
     refreshHeader();
     startTimerHz (30);
 }
@@ -287,6 +682,7 @@ void M1ArpAudioProcessorEditor::resized()
     for (int i = 0; i < kPages; ++i)
         tabs[i].setBounds (tabRow.removeFromLeft (i == kPages - 1 ? tabRow.getWidth() : w).reduced (3, 0));
 
+    info.setBounds (area.removeFromBottom (InfoView::kHeight + 10).reduced (14, 0).withTrimmedBottom (10));
     auto kb = area.removeFromBottom (96).reduced (22, 14);
     keyboard.setBounds (kb);
     const int whiteKeys = 52;
@@ -518,6 +914,7 @@ void M1ArpAudioProcessorEditor::rebuild()
         case 9: buildKit (*newPage); break;
         default: break;
     }
+    tagPage (*newPage);
     const int width = juce::jmax (400, viewport.getWidth() - viewport.getScrollBarThickness() - 2);
     newPage->layout (width);
     page = newPage;

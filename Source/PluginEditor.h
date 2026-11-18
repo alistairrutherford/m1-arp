@@ -13,6 +13,26 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // The Info View (a strip along the bottom, as NoteCap's and Live's own): the key of the control
+    // at `p` (editor coordinates; "Filter:VDF EG/Attack", "header.master"…; empty over nothing
+    // described, the strip itself included), its entry, and showing one as hovering does.
+    juce::String infoKeyAt (juce::Point<int> p);
+    void showInfoFor (const juce::String& key);
+    static juce::String infoTitle (const juce::String& key);
+    static juce::String infoText (const juce::String& key);
+    static juce::StringArray infoKeys();
+    static juce::String infoHint();
+    const m1ui::InfoView& infoView() const noexcept { return info; }
+
+    // For tests: show a page (0 = Play … 9 = Kit) at once.
+    void showPage (int index);
+    static int numPages();
+
+    void mouseEnter (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
+
 private:
     // The keyboard shows the notes the voices receive (after the arp); clicks
     // go in ahead of the arp through the processor's click state.
@@ -105,10 +125,11 @@ private:
     void buildCombi (m1ui::Page&);
     void buildKit (m1ui::Page&);
     void addOscSelector (m1ui::Page&, const m1::Program&);
+    void tagPage (m1ui::Page&);
+    void updateInfo (const juce::MouseEvent&);
 
     M1ArpAudioProcessor& processor;
     m1ui::Look look;
-    juce::TooltipWindow tooltips { this, 600 };
     Display display;
     juce::TextButton prevButton { "<" }, nextButton { ">" };
     juce::TextButton progButton { "PROG" }, combiButton { "COMBI" };
@@ -119,6 +140,7 @@ private:
     juce::Viewport viewport;
     m1ui::Page* page = nullptr;
     ArpDisplayKeyboard keyboard;
+    m1ui::InfoView info;
     std::unique_ptr<juce::FileChooser> chooser;
     int pageIndex = 0;
     int oscEdit = 0;

@@ -941,4 +941,44 @@ struct Page : public juce::Component
     }
 };
 
+// ---------------------------------------------------------------- Info View
+
+// The Info View (as NoteCap's and Live's own): a strip along the bottom of the editor that says
+// what the control under the mouse does and what its values mean, in a bold title and a line or
+// two of text; elsewhere a short hint. The descriptions are in PluginEditor.cpp.
+struct InfoView : public juce::Component
+{
+    static constexpr int kHeight = 54;
+    juce::String key, title, text;
+
+    void show (const juce::String& newKey, const juce::String& newTitle, const juce::String& newText)
+    {
+        key = newKey;
+        if (newTitle == title && newText == text)
+            return;
+        title = newTitle;
+        text = newText;
+        repaint();
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto r = getLocalBounds().toFloat().reduced (0.5f);
+        g.setColour (colours::panel);
+        g.fillRoundedRectangle (r, 8.0f);
+        g.setColour (colours::panelEdge);
+        g.drawRoundedRectangle (r, 8.0f, 1.0f);
+        r = r.reduced (14.0f, 8.0f);
+        if (title.isNotEmpty())
+        {
+            g.setColour (colours::text);
+            g.setFont (font (13.0f, true));
+            g.drawText (title, r.removeFromTop (18.0f), juce::Justification::centredLeft);
+        }
+        g.setColour (title.isEmpty() ? colours::dim : colours::text.withAlpha (0.85f));
+        g.setFont (font (12.5f));
+        g.drawFittedText (text, r.toNearestInt(), juce::Justification::topLeft, 2, 1.0f);
+    }
+};
+
 } // namespace m1ui

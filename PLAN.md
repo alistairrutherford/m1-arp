@@ -481,6 +481,19 @@ hardware skin.
 The keyboard shows notes after the arp. Editing a step while the pattern plays
 is heard on the next pass.
 
+**Info View** (2026-11-18, as NoteCap's and Live's own): a strip along the
+bottom, under the keyboard, 54 px with a 10 px gap, so the window is 64 px
+taller (1080 × 794 by default, 960 × 704 at its smallest). Pointing at any
+control shows a bold title and a line or two on what it does and what its
+values mean; elsewhere a hint. It replaces the tooltips (no `TooltipWindow`).
+The table is in `PluginEditor.cpp`, keyed `<page>:<section>/<control>` (each
+page's controls are tagged when it is built, `tagPage`), with `*` for any page
+(the arp's controls on Play and Arp, the polarity switches) or any control of a
+section (an effect type's own parameters), and `header.…` / `tab.…` for the
+header. `Tests/run_integration.sh` checks that every control on every page has
+its own entry, in PROG and COMBI mode, for a Single, a Double and a Drums
+program, and writes the README's screenshot to `Tests/build/editor-info.png`.
+
 ---
 
 ## 11. Tests
